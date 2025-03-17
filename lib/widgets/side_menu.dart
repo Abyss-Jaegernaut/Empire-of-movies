@@ -29,6 +29,15 @@ class SideMenu extends StatelessWidget {
                 ),
               ),
             ),
+            ListTile(
+              leading: const Icon(Icons.home, color: Colors.white70),
+              title: const Text("Accueil",
+                  style: TextStyle(color: Colors.white70)),
+              onTap: () {
+                Navigator.pop(context);
+                context.go('/home');
+              },
+            ),
             _buildMenuItem(context, Icons.whatshot, "Tendances",
                 route: "/category/tendances"),
             _buildMenuItem(context, Icons.movie, "Films",
@@ -65,13 +74,8 @@ class SideMenu extends StatelessWidget {
               title: const Text("Ajouter du contenu",
                   style: TextStyle(color: Colors.white)),
               onTap: () {
-                if (Provider.of<AuthProvider>(context, listen: false)
-                        .currentUser ==
-                    null) {
-                  Navigator.pushNamed(context, '/login');
-                } else {
-                  context.go("/add_video");
-                }
+                Navigator.pop(context);
+                context.go("/add_video");
               },
             ),
           ],
@@ -97,7 +101,14 @@ class SideMenu extends StatelessWidget {
                       color: Colors.white, fontWeight: FontWeight.bold)),
             )
           : null,
-      onTap: () => route != null ? context.go(route) : context.go('/home'),
+      onTap: () {
+        Navigator.pop(context);
+        if (route != null) {
+          context.go(route);
+        } else {
+          context.go('/home');
+        }
+      },
     );
   }
 }

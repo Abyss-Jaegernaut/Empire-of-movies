@@ -5,12 +5,14 @@ enum UserRole { user, moderator, admin, superAdmin }
 
 class AppUser {
   final String id;
+  final String username; // ✅ Ajout du champ nom d'utilisateur
   final String email;
   final String hashedPassword;
   final UserRole role;
 
   AppUser({
     required this.id,
+    required this.username, // ✅ Ajout ici
     required this.email,
     required this.hashedPassword,
     this.role = UserRole.user,
@@ -31,6 +33,7 @@ class AppUser {
   // Méthode pratique pour créer un utilisateur directement depuis le mot de passe clair
   factory AppUser.create({
     required String id,
+    required String username, // ✅ Ajout ici
     required String email,
     required String password,
     required String salt,
@@ -38,6 +41,7 @@ class AppUser {
   }) {
     return AppUser(
       id: id,
+      username: username, // ✅ Ajout ici
       email: email,
       hashedPassword: hashPassword(password, salt),
       role: role,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:my_porn/pages/login.dart';
 import 'package:provider/provider.dart';
 import '../providers/film_provider.dart';
@@ -65,24 +66,15 @@ class HomePage extends StatelessWidget {
                 },
               ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.blueAccent,
-        onPressed: () async {
-          // Vérifier si l'utilisateur est connecté
-          if (authProvider.currentUser == null) {
-            // Afficher le dialogue de connexion
-            bool success = await showDialog<bool>(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) => const LoginDialog(),
-                ) ??
-                false;
-            if (!success) return;
-          }
-          // Si connecté, naviguer vers la page d'ajout de vidéo
-          Navigator.pushNamed(context, '/addVideo');
-        },
-        child: const Icon(Icons.add),
+      floatingActionButton: Tooltip(
+        message: "Connexion",
+        child: FloatingActionButton(
+          backgroundColor: Colors.blueAccent,
+          onPressed: () {
+            context.go('/login'); // Redirige vers la page de connexion
+          },
+          child: const Icon(Icons.login),
+        ),
       ),
     );
   }

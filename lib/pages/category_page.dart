@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/film_provider.dart';
 import '../models/film.dart';
 import '../widgets/film_card.dart';
 import '../widgets/film_search_delegate.dart';
+import '../widgets/side_menu.dart';
+import 'age_verification.dart';
 
 class CategoryPage extends StatelessWidget {
   final String category;
@@ -20,10 +23,14 @@ class CategoryPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () =>
-              Navigator.popUntil(context, ModalRoute.withName('/home')),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              Scaffold.of(context)
+                  .openDrawer(); // Ouvre le side menu au lieu de revenir au home
+            },
+          ),
         ),
         title: Text(category),
         backgroundColor: Colors.black,
@@ -39,6 +46,7 @@ class CategoryPage extends StatelessWidget {
           ),
         ],
       ),
+      drawer: const SideMenu(), // Ajout du side menu
       body: Container(
         color: Colors.black,
         padding: const EdgeInsets.all(12),

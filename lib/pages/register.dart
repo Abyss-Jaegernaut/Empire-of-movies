@@ -11,6 +11,7 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
@@ -28,10 +29,11 @@ class _RegisterPageState extends State<RegisterPage> {
       }
       try {
         Provider.of<AuthProvider>(context, listen: false).register(
+          _usernameController.text, // Nom d'utilisateur ajouté
           _emailController.text,
           _passwordController.text,
         );
-        context.goNamed('home');
+        context.go('/home'); // ✅ Redirection vers l'accueil après l'inscription
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString())),
@@ -43,7 +45,7 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.black, // ✅ Fond noir
       appBar: AppBar(
         backgroundColor: Colors.black,
         title: const Text("Créer un compte",
@@ -56,6 +58,24 @@ class _RegisterPageState extends State<RegisterPage> {
           child: Column(
             children: [
               const SizedBox(height: 50),
+              TextFormField(
+                controller: _usernameController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: "Nom d'utilisateur",
+                  labelStyle: const TextStyle(color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.grey[900],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? "Veuillez saisir un nom d'utilisateur"
+                    : null,
+              ),
+              const SizedBox(height: 20),
               TextFormField(
                 controller: _emailController,
                 style: const TextStyle(color: Colors.white),
@@ -90,10 +110,12 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 obscureText: true,
                 validator: (value) {
-                  if (value == null || value.isEmpty)
+                  if (value == null || value.isEmpty) {
                     return "Veuillez saisir votre mot de passe";
-                  if (value.length < 6)
+                  }
+                  if (value.length < 6) {
                     return "Le mot de passe doit contenir au moins 6 caractères";
+                  }
                   return null;
                 },
               ),
@@ -123,7 +145,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
                 onPressed: _register,
                 child: const Text(
@@ -133,10 +156,24 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 20),
               TextButton(
-                onPressed: () => context.goNamed('login'),
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop(); // ✅ Ferme la page si possible
+                  } else {
+                    context.go('/login'); // ✅ Sinon, redirige vers la connexion
+                  }
+                },
+                child: const Text(
+                  "Annuler",
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => context.go('/login'),
                 child: const Text(
                   "Déjà un compte ? Connectez-vous",
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(color: Colors.blueAccent),
                 ),
               ),
             ],

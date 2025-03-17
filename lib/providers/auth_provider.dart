@@ -30,13 +30,14 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void register(String email, String password) {
+  void register(String username, String email, String password) {
     if (_userDatabase.containsKey(email)) {
       throw Exception("Cet email est déjà utilisé.");
     }
 
     final newUser = AppUser.create(
       id: _uuid.v4(),
+      username: username, // ✅ Ajout du nom d'utilisateur
       email: email,
       password: password,
       salt: email,
@@ -49,6 +50,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void createAdminAccount({
+    required String username,
     required String email,
     required String password,
     required UserRole role,
@@ -63,6 +65,7 @@ class AuthProvider extends ChangeNotifier {
 
     final newAdmin = AppUser.create(
       id: _uuid.v4(),
+      username: username, // ✅ Ajout du nom d'utilisateur
       email: email,
       password: password,
       salt: email,
@@ -80,6 +83,7 @@ class AuthProvider extends ChangeNotifier {
     final user = _userDatabase[email]!;
     final updatedUser = AppUser(
       id: user.id,
+      username: user.username, // ✅ Conservation du nom d'utilisateur
       email: email,
       hashedPassword: AppUser.hashPassword(newPassword, email),
       role: userDatabase[email]!.role,
