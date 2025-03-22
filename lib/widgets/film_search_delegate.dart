@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:my_porn/models/film.dart';
+import '../models/film.dart';
 
 class FilmSearchDelegate extends SearchDelegate {
   final List<Film> films;
+  Timer? _debounceTimer;
 
   FilmSearchDelegate(this.films);
 
@@ -27,49 +29,31 @@ class FilmSearchDelegate extends SearchDelegate {
 
   @override
   Widget buildResults(BuildContext context) {
-    final results = films
-        .where((film) => film.titre.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+    final results = _filterAndSortResults();
 
     return Container(
       color: Colors.black,
-      child: ListView.builder(
-        itemCount: results.length,
-        itemBuilder: (context, index) {
-          final film = results[index];
-          return ListTile(
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                film.affiche,
-                width: 50,
-                height: 75,
-                fit: BoxFit.cover,
+      child: results.isEmpty
+          ? const Center(
+              child: Text(
+                "Aucun film trouvé",
+                style: TextStyle(color: Colors.white70, fontSize: 18),
               ),
+            )
+          : ListView.builder(
+              itemCount: results.length,
+              itemBuilder: (context, index) {
+                final film = results[index];
+                return _buildFilmTile(context, film);
+              },
             ),
-            title: Text(
-              film.titre,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              film.description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white70),
-            ),
-            onTap: () => context.go('/film/${film.id}'),
-          );
-        },
-      ),
     );
   }
 
   @override
   Widget buildSuggestions(BuildContext context) {
-    final suggestions = films
-        .where((film) => film.titre.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+    _debounceSearch(context); // ✅ Correction ici
+    final suggestions = _filterAndSortResults();
 
     return Container(
       color: Colors.black,
@@ -77,27 +61,67 @@ class FilmSearchDelegate extends SearchDelegate {
         itemCount: suggestions.length,
         itemBuilder: (context, index) {
           final film = suggestions[index];
-          return ListTile(
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                film.affiche,
-                width: 50,
-                height: 75,
-                fit: BoxFit.cover,
-              ),
-            ),
-            title: Text(
-              film.titre,
-              style: const TextStyle(color: Colors.white),
-            ),
-            onTap: () {
-              query = film.titre;
-              showResults(context);
-            },
-          );
+          return _buildFilmTile(context, film);
         },
       ),
     );
+  }
+
+  /// 🔹 **Filtre et trie les résultats par popularité (likes + vues)**
+  List<Film> _filterAndSortResults() {
+    return films
+        .where((film) => film.titre.toLowerCase().contains(query.toLowerCase()))
+        .toList()
+      ..sort((a, b) => (b.likes + b.views).compareTo(a.likes + a.views));
+  }
+
+  /// 🔹 **Retarde l'exécution de la recherche pour éviter de multiples appels inutiles**
+  void _debounceSearch(BuildContext context) {
+    // ✅ Ajout de BuildContext
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      showSuggestions(context);
+    });
+  }
+
+  /// 🔹 **Construit un élément de la liste des films**
+  Widget _buildFilmTile(BuildContext context, Film film) {
+    return ListTile(
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          film.affiche,
+          width: 50,
+          height: 75,
+          fit: BoxFit.cover,
+        ),
+      ),
+      title: Text(
+        film.titre,
+        style:
+            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      ),
+      subtitle: Row(
+        children: [
+          Icon(Icons.favorite, color: Colors.redAccent, size: 16),
+          const SizedBox(width: 4),
+          Text('${film.likes}', style: const TextStyle(color: Colors.white70)),
+          const SizedBox(width: 10),
+          Icon(Icons.visibility, color: Colors.white54, size: 16),
+          const SizedBox(width: 4),
+          Text('${film.views}', style: const TextStyle(color: Colors.white70)),
+        ],
+      ),
+      onTap: () {
+        close(context, null); // ✅ Ferme la recherche
+        context.go('/film/${film.id}');
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
   }
 }

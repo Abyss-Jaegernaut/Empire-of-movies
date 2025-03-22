@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
 class LoginDialog extends StatefulWidget {
-  const LoginDialog({Key? key}) : super(key: key);
+  const LoginDialog({super.key});
 
   @override
   State<LoginDialog> createState() => _LoginDialogState();
@@ -15,30 +15,34 @@ class _LoginDialogState extends State<LoginDialog> {
   final TextEditingController _passwordController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _isPasswordVisible = false; // 👁️ Affichage du mot de passe
 
   void _login() async {
     if (_formKey.currentState?.validate() ?? false) {
-      setState(() {
-        _isLoading = true;
-      });
+      setState(() => _isLoading = true);
+
       try {
-        await Provider.of<AuthProvider>(context, listen: false).id(
-          _emailController.text,
+        await Provider.of<AuthProvider>(context, listen: false).login(
+          _emailController.text.trim(),
           _passwordController.text,
         );
-        // ✅ Ferme la boîte de dialogue après connexion réussie
+
         if (context.mounted) {
           Navigator.of(context).pop(true);
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(
+            content: Text(
+              e.toString(),
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       } finally {
         if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
+          setState(() => _isLoading = false);
         }
       }
     }
@@ -58,42 +62,28 @@ class _LoginDialogState extends State<LoginDialog> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextFormField(
+                  _buildTextField(
                     controller: _emailController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: "Email",
-                      labelStyle: const TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.grey[900],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
+                    label: "Email",
+                    isPassword: false,
                     keyboardType: TextInputType.emailAddress,
-                    validator: (value) => value == null || value.isEmpty
-                        ? "Veuillez saisir votre email"
-                        : null,
                   ),
                   const SizedBox(height: 20),
-                  TextFormField(
+                  _buildTextField(
                     controller: _passwordController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: "Mot de passe",
-                      labelStyle: const TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.grey[900],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
+                    label: "Mot de passe",
+                    isPassword: true,
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => context.go('/forgot-password'),
+                      child: const Text(
+                        "Mot de passe oublié ?",
+                        style: TextStyle(color: Colors.blueAccent),
                       ),
                     ),
-                    obscureText: true,
-                    validator: (value) => value == null || value.isEmpty
-                        ? "Veuillez saisir votre mot de passe"
-                        : null,
                   ),
                 ],
               ),
@@ -113,7 +103,7 @@ class _LoginDialogState extends State<LoginDialog> {
                   ),
                   onPressed: _isLoading ? null : _login,
                   child: _isLoading
-                      ? const CircularProgressIndicator()
+                      ? const CircularProgressIndicator(color: Colors.white)
                       : const Text(
                           "Se connecter",
                           style: TextStyle(
@@ -124,11 +114,9 @@ class _LoginDialogState extends State<LoginDialog> {
                 TextButton(
                   onPressed: () {
                     if (Navigator.of(context).canPop()) {
-                      Navigator.of(context)
-                          .pop(); // ✅ Ferme la boîte de dialogue correctement
+                      Navigator.of(context).pop();
                     } else {
-                      context.go(
-                          '/home'); // ✅ Retourne à l'accueil si aucun pop possible
+                      context.go('/home');
                     }
                   },
                   child: const Text("Annuler",
@@ -137,9 +125,9 @@ class _LoginDialogState extends State<LoginDialog> {
                 const SizedBox(height: 10),
                 TextButton(
                   onPressed: () {
-                    Navigator.of(context)
-                        .pop(); // ✅ Ferme la boîte de dialogue avant de rediriger
-                    context.go('/home'); // ✅ Redirige vers le home
+                    Navigator.of(context).pop();
+                    context.go(
+                        '/register'); // ✅ Redirige vers la page d'inscription
                   },
                   child: const Text(
                     "Pas de compte ? Créez-en un",
@@ -151,6 +139,44 @@ class _LoginDialogState extends State<LoginDialog> {
           ],
         ),
       ),
+    );
+  }
+
+  /// 🔹 Widget pour les champs de texte
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required bool isPassword,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: const TextStyle(color: Colors.white),
+      obscureText: isPassword && !_isPasswordVisible,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.grey),
+        filled: true,
+        fillColor: Colors.grey[900],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(
+                  _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                  color: Colors.white70,
+                ),
+                onPressed: () {
+                  setState(() => _isPasswordVisible = !_isPasswordVisible);
+                },
+              )
+            : null,
+      ),
+      validator: (value) =>
+          value == null || value.isEmpty ? "Veuillez saisir $label" : null,
     );
   }
 }

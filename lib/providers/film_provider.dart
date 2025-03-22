@@ -1,106 +1,130 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
+import 'package:my_porn/models/user.dart';
 import '../models/film.dart';
+import '../services/api_service.dart';
+import '../providers/auth_provider.dart';
+import 'package:provider/provider.dart';
 
 class FilmProvider extends ChangeNotifier {
-  final List<Film> _movies = [];
-  final List<String> _trendingCategories = [];
-  final _uuid = Uuid();
-  Timer? _trendingTimer;
+  final List<Film> _movies = []; // ✅ Liste des films chargés
+  List<Film> _favoriteMovies = []; // ✅ Liste des films favoris
+  List<String> _favoriteMovieIds = []; // ✅ Stocke les ID des favoris
+  bool _isLoading = false;
+  int _currentPage = 1;
+  bool _hasMoreMovies = true;
+  bool _isWebSocketConnected = false;
 
-  // On expose des listes non modifiables
-  List<Film> get films => List.unmodifiable(_movies);
-  List<String> get trendingCategories => List.unmodifiable(_trendingCategories);
+  List<Film> get films => _movies;
+  List<Film> get favoriteFilms => _favoriteMovies; // ✅ Retourne les favoris
+  bool get isLoading => _isLoading;
+  bool get hasMoreMovies => _hasMoreMovies;
+  List<String> get favoriteMovieIds => _favoriteMovieIds;
 
-  // Méthode pour ajouter un film
-  void addFilm({
-    required String title,
-    required String description,
-    required String posterUrl,
-    required String category,
-  }) {
-    final newFilm = Film(
-      id: _uuid.v4(),
-      titre: titleCase(title),
-      description: description,
-      affiche: posterUrl,
-      category: category,
-    );
-    _movies.add(newFilm);
-    notifyListeners();
+  FilmProvider() {
+    loadFavorites(); // ✅ Charge les favoris au démarrage
   }
 
-  // Récupérer les catégories tendances
-  List<String> getTrendingCategories() => _trendingCategories;
+  get SharedPreferences => null;
 
-  // Incrémente le nombre de likes d'un film
-  void likeFilm(String movieId) {
-    final film = _movies.firstWhere((film) => film.id == movieId);
-    film.likes++; // Incrémente le compteur de likes
-    notifyListeners();
-  }
-
-  // Incrémente le nombre de vues d'un film
-  void incrementViewCount(String movieId) {
-    final film = _movies.firstWhere((film) => film.id == movieId);
-    film.views++; // Incrémente le compteur de vues
-    notifyListeners();
-  }
-
-  // Ajoute un commentaire à un film
-  void addComment({required String movieId, required String comment}) {
-    final film = _movies.firstWhere((film) => film.id == movieId);
-    film.comments.add(comment);
-    notifyListeners();
-  }
-
-  // Supprime un film
-  void deleteFilm(String movieId) {
-    _movies.removeWhere((film) => film.id == movieId);
-    notifyListeners();
-  }
-
-// Supprime un commmentaire
-  void deleteComment({required String movieId, required int commentIndex}) {
-    final film = _movies.firstWhere((film) => film.id == movieId);
-    film.comments.removeAt(commentIndex);
-    notifyListeners();
-  }
-
-  // Met à jour les catégories tendances en se basant sur les vues
-  void updateTrendingCategories() {
-    final sortedMovies = [..._movies];
-    sortedMovies.sort((a, b) => b.views.compareTo(a.views));
-
-    final Set<String> trending = {};
-    for (var film in sortedMovies.take(3)) {
-      trending.add(film.category);
+  /// 🔹 Charge les films avec pagination
+  Future<void> fetchFilms({bool reset = false}) async {
+    if (reset) {
+      _movies.clear();
+      _currentPage = 1;
+      _hasMoreMovies = true;
     }
 
-    _trendingCategories
-      ..clear()
-      ..addAll(trending);
+    if (!_hasMoreMovies) return;
+    _isLoading = true;
+    notifyListeners();
 
+    try {
+      final newMovies = await ApiService.getFilms(page: _currentPage);
+      if (newMovies.isEmpty) {
+        _hasMoreMovies = false;
+      } else {
+        _movies.addAll(newMovies);
+        _currentPage++;
+      }
+    } catch (e) {
+      debugPrint("❌ Erreur lors du chargement des films : $e");
+    }
+
+    _isLoading = false;
     notifyListeners();
   }
 
-  // Démarre la mise à jour périodique des catégories tendances
-  void startTrendingUpdates() {
-    _trendingTimer?.cancel();
-    _trendingTimer = Timer.periodic(const Duration(minutes: 5), (_) {
-      updateTrendingCategories();
+  /// 🔹 Charge les favoris stockés localement
+  Future<void> loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    _favoriteMovieIds = prefs.getStringList('favoriteMovies') ?? [];
+    await fetchFavoriteFilms(); // ✅ Charge les détails des films favoris
+  }
+
+  /// 🔹 Charge les détails des films favoris depuis l'API
+  Future<void> fetchFavoriteFilms() async {
+    try {
+      if (_favoriteMovieIds.isNotEmpty) {
+        final favoriteMovies =
+            await ApiService.getFavoriteFilms(_favoriteMovieIds);
+        _favoriteMovies = favoriteMovies;
+      } else {
+        _favoriteMovies = [];
+      }
+    } catch (e) {
+      debugPrint("❌ Erreur lors du chargement des favoris : $e");
+    }
+    notifyListeners();
+  }
+
+  /// 🔹 Ajout/Suppression d'un film aux favoris
+  Future<void> toggleFavorite(String movieId, BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (_favoriteMovieIds.contains(movieId)) {
+      _favoriteMovieIds.remove(movieId);
+    } else {
+      _favoriteMovieIds.add(movieId);
+    }
+
+    await prefs.setStringList('favoriteMovies', _favoriteMovieIds);
+    await fetchFavoriteFilms(); // ✅ Recharge les favoris après modification
+    notifyListeners();
+  }
+
+  /// 🔹 Vérifie si un film est en favori
+  bool isFavorite(String movieId) {
+    return _favoriteMovieIds.contains(movieId);
+  }
+
+  /// 🔹 Chargement des films en temps réel avec WebSocket
+  void initWebSocket() {
+    if (_isWebSocketConnected) return;
+    _isWebSocketConnected = true;
+
+    ApiService.listenForFilmUpdates((Film newFilm) {
+      _movies.insert(0, newFilm);
+      notifyListeners();
     });
   }
 
-  // Arrête la mise à jour périodique
-  void stopTrendingUpdates() {
-    _trendingTimer?.cancel();
+  /// 🔹 Aimer un film via l'API
+  Future<void> likeFilm(String movieId) async {
+    try {
+      await ApiService.likeFilm(movieId);
+      _movies.firstWhere((film) => film.id == movieId).likes++;
+      notifyListeners();
+    } catch (e) {
+      debugPrint("❌ Erreur lors du like du film : $e");
+    }
   }
 
-  // Met en majuscule la première lettre de chaque mot
-  String titleCase(String text) => text
-      .split(' ')
-      .map((e) => "${e[0].toUpperCase()}${e.substring(1)}")
-      .join(' ');
+  /// 🔹 Actions supplémentaires
+  void incrementViewCount(String movieId) {}
+  void addFilmToList(Film newFilm) {}
+  void addToFavorites(String movieId) {}
+  void removeFromFavorites(String movieId) {}
+  void addComment({required String movieId, required String comment}) {}
+  void deleteComment({required String movieId, required int commentIndex}) {}
 }

@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart'; // ✅ Ajout
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/film_provider.dart';
@@ -8,9 +10,17 @@ import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  usePathUrlStrategy(); // ✅ Ajout clé pour le Web (enlève le # dans l’URL)
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint("✅ Firebase initialisé avec succès !");
+  } catch (e) {
+    debugPrint("❌ Erreur lors de l'initialisation de Firebase : $e");
+  }
+
   runApp(const EmpireOfMoviesApp());
 }
 
@@ -21,8 +31,13 @@ class EmpireOfMoviesApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider<AuthProvider>(create: (_) => AuthProvider()),
-        ChangeNotifierProvider<FilmProvider>(create: (_) => FilmProvider()),
+        ChangeNotifierProvider<AuthProvider>(
+          create: (_) => AuthProvider(),
+          lazy: false,
+        ),
+        ChangeNotifierProvider<FilmProvider>(
+          create: (_) => FilmProvider()..fetchFilms(),
+        ),
       ],
       child: MaterialApp.router(
         title: 'Empire of Movies',

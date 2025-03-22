@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:my_porn/models/user.dart';
 import 'package:provider/provider.dart';
+import '../services/api_service.dart';
 import '../providers/film_provider.dart';
+import '../providers/auth_provider.dart';
 
 class AddVideoPage extends StatefulWidget {
-  const AddVideoPage({super.key}); // Correction du constructeur
+  const AddVideoPage({super.key});
 
   @override
   State<AddVideoPage> createState() => _AddVideoPageState();
@@ -15,6 +18,7 @@ class _AddVideoPageState extends State<AddVideoPage> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _posterUrlController = TextEditingController();
   final TextEditingController _categoryController = TextEditingController();
+  bool _isLoading = false; // ✅ Gestion du chargement
 
   @override
   void dispose() {
@@ -25,18 +29,60 @@ class _AddVideoPageState extends State<AddVideoPage> {
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState?.validate() ?? false) {
-      Provider.of<FilmProvider>(context, listen: false).addFilm(
-        title: _titleController.text, // Paramètre nommé obligatoire
-        description: _descriptionController.text, // Paramètre nommé obligatoire
-        posterUrl: _posterUrlController.text, // Paramètre nommé obligatoire
-        category: _categoryController.text, // Paramètre nommé obligatoire
-      );
+  /// 🔹 Fonction pour ajouter un film via l'API avec AUTH
+  void _submit() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final filmProvider = Provider.of<FilmProvider>(context, listen: false);
+
+    if (authProvider.currentUser == null || authProvider.token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vidéo ajoutée avec succès !")),
+        const SnackBar(
+            content: Text("⛔ Vous devez être connecté pour ajouter un film.")),
       );
-      Navigator.pop(context);
+      return;
+    }
+
+    // 🔥 Vérifie si l'utilisateur est Admin ou SuperAdmin
+    if (authProvider.currentUser?.role != UserRole.admin &&
+        authProvider.currentUser?.role != UserRole.superAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("⛔ Seuls les Admins peuvent ajouter un film.")),
+      );
+      return;
+    }
+
+    if (_formKey.currentState?.validate() ?? false) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final newFilm = await ApiService.addFilm(
+          title: _titleController.text,
+          description: _descriptionController.text,
+          posterUrl: _posterUrlController.text,
+          category: _categoryController.text,
+          token: authProvider.token!, // 🔐 Envoie le token JWT
+        );
+
+        filmProvider.addFilmToList(
+            newFilm); // ✅ Ajoute le film sans recharger tous les films
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Vidéo ajoutée avec succès !")),
+        );
+
+        Navigator.pop(context);
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Erreur : ${e.toString()}")),
+        );
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -53,77 +99,11 @@ class _AddVideoPageState extends State<AddVideoPage> {
           key: _formKey,
           child: ListView(
             children: [
-              TextFormField(
-                controller: _titleController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Titre",
-                  labelStyle: const TextStyle(color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.grey[900],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Entrez un titre" : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                maxLines: 3,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Description",
-                  labelStyle: const TextStyle(color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.grey[900],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                validator: (value) => value == null || value.isEmpty
-                    ? "Entrez une description"
-                    : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _posterUrlController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "URL de l'affiche",
-                  labelStyle: const TextStyle(color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.grey[900],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                validator: (value) => value == null || value.isEmpty
-                    ? "Entrez l'URL de l'affiche"
-                    : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _categoryController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Catégorie",
-                  labelStyle: const TextStyle(color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.grey[900],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                validator: (value) => value == null || value.isEmpty
-                    ? "Entrez la catégorie"
-                    : null,
-              ),
+              _buildTextField(_titleController, "Titre"),
+              _buildTextField(_descriptionController, "Description",
+                  isMultiline: true),
+              _buildTextField(_posterUrlController, "URL de l'affiche"),
+              _buildTextField(_categoryController, "Catégorie"),
               const SizedBox(height: 24),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -133,17 +113,47 @@ class _AddVideoPageState extends State<AddVideoPage> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                onPressed: _submit,
-                child: const Text(
-                  "Ajouter le contenu",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                onPressed: _isLoading
+                    ? null
+                    : _submit, // ✅ Désactive le bouton si chargement
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                        "Ajouter le contenu",
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
               ),
             ],
           ),
         ),
       ),
       backgroundColor: Colors.black,
+    );
+  }
+
+  /// 🔹 Fonction générique pour créer un champ de texte
+  Widget _buildTextField(TextEditingController controller, String label,
+      {bool isMultiline = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: controller,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.grey),
+          filled: true,
+          fillColor: Colors.grey[900],
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+        ),
+        maxLines: isMultiline ? 3 : 1,
+        validator: (value) =>
+            value == null || value.isEmpty ? "Entrez $label" : null,
+      ),
     );
   }
 }

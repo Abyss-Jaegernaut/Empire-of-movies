@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/film_provider.dart';
+import '../providers/auth_provider.dart';
 import '../models/film.dart';
 
 class FilmDetailsPage extends StatefulWidget {
   final String movieId;
-  const FilmDetailsPage({super.key, required this.movieId, required filmId});
+  const FilmDetailsPage({super.key, required this.movieId});
 
   @override
   State<FilmDetailsPage> createState() => _FilmDetailsPageState();
@@ -13,30 +14,54 @@ class FilmDetailsPage extends StatefulWidget {
 
 class _FilmDetailsPageState extends State<FilmDetailsPage> {
   final TextEditingController _commentController = TextEditingController();
+  bool _isFavorite = false; // ✅ Gestion des favoris
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final filmProvider = Provider.of<FilmProvider>(context, listen: false);
+      filmProvider.incrementViewCount(widget.movieId);
+      _isFavorite = filmProvider.isFavorite(widget.movieId);
+    });
+  }
+
+  void _toggleFavorite() {
+    final filmProvider = Provider.of<FilmProvider>(context, listen: false);
+    setState(() {
+      _isFavorite = !_isFavorite;
+    });
+
+    if (_isFavorite) {
+      filmProvider.addToFavorites(widget.movieId);
+    } else {
+      filmProvider.removeFromFavorites(widget.movieId);
+    }
+  }
 
   void _submitComment(FilmProvider filmProvider, String movieId) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("⛔ Connectez-vous pour commenter.")),
+      );
+      return;
+    }
+
     final comment = _commentController.text.trim();
     if (comment.isNotEmpty) {
-      // Ici, assurez-vous que votre FilmProvider attend un paramètre nommé "movieId"
       filmProvider.addComment(movieId: movieId, comment: comment);
       _commentController.clear();
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    // Utiliser addPostFrameCallback pour éviter d'utiliser le context directement dans initState
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<FilmProvider>(context, listen: false)
-          .incrementViewCount(widget.movieId);
-    });
+  void _deleteComment(FilmProvider filmProvider, String movieId, int index) {
+    filmProvider.deleteComment(movieId: movieId, commentIndex: index);
   }
 
   @override
   Widget build(BuildContext context) {
     final filmProvider = Provider.of<FilmProvider>(context);
-    // Supposons que filmProvider.films soit une List<Film> non nullable.
     final Film film = filmProvider.films.firstWhere(
       (film) => film.id == widget.movieId,
       orElse: () => throw Exception('Film introuvable'),
@@ -47,10 +72,13 @@ class _FilmDetailsPageState extends State<FilmDetailsPage> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         title: Text(film.titre, style: const TextStyle(color: Colors.white)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        actions: [
+          IconButton(
+            icon: Icon(_isFavorite ? Icons.star : Icons.star_border,
+                color: Colors.yellow),
+            onPressed: _toggleFavorite,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -82,11 +110,10 @@ class _FilmDetailsPageState extends State<FilmDetailsPage> {
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blueAccent),
-                  icon: const Icon(Icons.favorite_border),
+                  icon: const Icon(Icons.thumb_up_alt_outlined),
                   label: const Text("J'aime"),
                   onPressed: () {
-                    Provider.of<FilmProvider>(context, listen: false)
-                        .likeFilm(film.id);
+                    filmProvider.likeFilm(film.id);
                   },
                 ),
               ],
@@ -100,11 +127,19 @@ class _FilmDetailsPageState extends State<FilmDetailsPage> {
                   fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            ...film.comments.map((comment) => ListTile(
-                  leading: const Icon(Icons.comment, color: Colors.white54),
-                  title: Text(comment,
-                      style: const TextStyle(color: Colors.white70)),
-                )),
+            ...film.comments.asMap().entries.map((entry) {
+              int index = entry.key;
+              String comment = entry.value;
+              return ListTile(
+                leading: const Icon(Icons.comment, color: Colors.white54),
+                title: Text(comment,
+                    style: const TextStyle(color: Colors.white70)),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _deleteComment(filmProvider, film.id, index),
+                ),
+              );
+            }),
             const SizedBox(height: 20),
             TextField(
               controller: _commentController,
@@ -128,8 +163,7 @@ class _FilmDetailsPageState extends State<FilmDetailsPage> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
               ),
-              // On passe filmProvider et widget.movieId ici
-              onPressed: () => _submitComment(filmProvider, widget.movieId),
+              onPressed: () => _submitComment(filmProvider, film.id),
               child: const Text("Ajouter un commentaire"),
             ),
           ],
